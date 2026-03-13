@@ -1,0 +1,193 @@
+"""
+Main Runner: Executes all experiments for the SVM Primal-Dual Study
+
+Usage:
+    python run_all.py           # Run everything
+    python run_all.py rq1       # Run only Research Question 1
+    python run_all.py rq2       # Run only Research Question 2
+    python run_all.py viz       # Run only decision boundary visualization
+"""
+
+import sys
+import os
+
+
+def run_rq1():
+    print("\n" + "#" * 60)
+    print("# RESEARCH QUESTION 1: NUMERICAL PRECISION")
+    print("#" * 60 + "\n")
+
+    from rq1_numerical_precision import (
+        run_experiment,
+        print_summary_table,
+        plot_gap_vs_variable,
+        plot_kkt_violations,
+        plot_gap_heatmap,
+    )
+
+    n_samples_list = [100, 500, 1000, 3000]
+    n_features_list = [10, 50, 200]
+    noise_list = [0.0, 0.1, 0.3]
+    C_list = [0.01, 1.0, 100.0, 10000.0]
+
+    kernel_configs = [
+        ("linear", {}),
+        ("rbf", {"gamma": "scale"}),
+        ("poly", {"degree": 3, "coef0": 1, "gamma": "scale"}),
+    ]
+
+    results = run_experiment(
+        n_samples_list=n_samples_list,
+        n_features_list=n_features_list,
+        noise_list=noise_list,
+        C_list=C_list,
+        kernel_configs=kernel_configs,
+    )
+
+    print_summary_table(results)
+
+    plot_gap_vs_variable(results, "n_samples", "Number of Samples")
+    plot_gap_vs_variable(results, "n_features", "Number of Features")
+    plot_gap_vs_variable(results, "C", "Regularization (C)")
+    plot_gap_vs_variable(results, "noise", "Label Noise")
+    plot_kkt_violations(results)
+    plot_gap_heatmap(results)
+
+    print("\nRQ1 Done! Plots saved to ./plots/")
+
+
+def run_rq2():
+    print("\n" + "#" * 60)
+    print("# RESEARCH QUESTION 2: SOLVER SCALING CROSSOVER")
+    print("#" * 60 + "\n")
+
+    from rq2_solver_scaling import (
+        experiment_vary_n,
+        experiment_vary_d,
+        print_scaling_table,
+        plot_scaling_comparison,
+        plot_accuracy_comparison,
+        plot_crossover_summary,
+        plot_ncomponents_used,
+        estimate_crossover,
+    )
+
+    kernel_types = ["linear", "rbf", "poly"]
+    C = 1.0
+
+    # Experiment A: Fix d=100, vary n
+    print(">>> Experiment A: Varying n with fixed d=100")
+    fixed_d = 100
+    n_samples_list = [50, 100, 200, 500, 1000, 2000, 5000, 10000]
+
+    results_vary_n = experiment_vary_n(
+        n_samples_list=n_samples_list,
+        fixed_d=fixed_d,
+        kernel_types=kernel_types,
+        C=C,
+        acc_tol=0.03,
+        n_timing_runs=5,
+    )
+    print_scaling_table(results_vary_n, "Vary n (d=100)")
+
+    # Experiment B: Fix n=1000, vary d
+    print("\n>>> Experiment B: Varying d with fixed n=1000")
+    fixed_n = 1000
+    n_features_list = [10, 25, 50, 100, 200, 500, 1000, 2000, 5000]
+
+    results_vary_d = experiment_vary_d(
+        fixed_n=fixed_n,
+        n_features_list=n_features_list,
+        kernel_types=kernel_types,
+        C=C,
+        acc_tol=0.03,
+        n_timing_runs=5,
+    )
+    print_scaling_table(results_vary_d, "Vary d (n=1000)")
+
+    # Combined results
+    all_results = results_vary_n + results_vary_d
+
+    # Plots
+    plot_scaling_comparison(
+        results_vary_n, "vary_n", "n_samples", "Number of Samples (n)"
+    )
+    plot_scaling_comparison(
+        results_vary_d, "vary_d", "n_features", "Number of Features (d)"
+    )
+    plot_accuracy_comparison(
+        results_vary_n, "vary_n", "n_samples", "Number of Samples (n)"
+    )
+    plot_accuracy_comparison(
+        results_vary_d, "vary_d", "n_features", "Number of Features (d)"
+    )
+    plot_ncomponents_used(
+        results_vary_n, "vary_n", "n_samples", "Number of Samples (n)"
+    )
+    plot_ncomponents_used(
+        results_vary_d, "vary_d", "n_features", "Number of Features (d)"
+    )
+    plot_crossover_summary(all_results)
+
+    # Report crossover points
+    print("\n" + "=" * 80)
+    print("ESTIMATED CROSSOVER POINTS")
+    print("=" * 80)
+    for kernel in kernel_types:
+        print(f"\n  {kernel.upper()} kernel:")
+        for exp in ["vary_n", "vary_d"]:
+            info = estimate_crossover(all_results, kernel, exp)
+            conf = info["confidence"].upper()
+            matched_str = f"{info['n_matched']}/{info['n_total']} matched"
+            if info["crossovers"] and info["confidence"] != "infeasible":
+                vals = [f"{c:.1f}" for c in info["crossovers"]]
+                print(f"    {exp}: n/d ~ {', '.join(vals)}  [{conf}, {matched_str}]")
+            else:
+                print(f"    {exp}: {info['note']}  [{conf}, {matched_str}]")
+
+    print("\n" + "-" * 80)
+    print("INTERPRETATION GUIDE:")
+    print("  HIGH     = clean single crossover, all points accuracy-matched")
+    print("  MODERATE = crossover found but some points excluded or minor noise")
+    print("  LOW      = multiple crossovers (noisy) or many unmatched points")
+    print("  INFEASIBLE = primal approximation could not match dual accuracy")
+    print("-" * 80)
+
+    print("\nRQ2 Done! Plots saved to ./plots/")
+
+
+def run_viz():
+    print("\n" + "#" * 60)
+    print("# DECISION BOUNDARY VISUALIZATION")
+    print("#" * 60 + "\n")
+
+    from visualize_boundaries import visualize_all
+
+    visualize_all(C=1.0)
+
+    print("\nVisualization Done! Plots saved to ./plots/")
+
+
+if __name__ == "__main__":
+    os.makedirs("plots", exist_ok=True)
+
+    if len(sys.argv) > 1:
+        task = sys.argv[1].lower()
+        if task == "rq1":
+            run_rq1()
+        elif task == "rq2":
+            run_rq2()
+        elif task == "viz":
+            run_viz()
+        else:
+            print(f"Unknown task: {task}")
+            print("Usage: python run_all.py [rq1 | rq2 | viz]")
+    else:
+        run_rq1()
+        run_rq2()
+        run_viz()
+
+    print("\n" + "=" * 60)
+    print("ALL EXPERIMENTS COMPLETE")
+    print("Plots saved to ./plots/")
+    print("=" * 60)
