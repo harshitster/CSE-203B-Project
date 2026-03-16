@@ -5,6 +5,7 @@ Usage:
     python run_all.py           # Run everything
     python run_all.py rq1       # Run only Research Question 1
     python run_all.py rq2       # Run only Research Question 2
+    python run_all.py cvxpy     # Run only CVXPY control experiment
     python run_all.py viz       # Run only decision boundary visualization
 """
 
@@ -156,6 +157,96 @@ def run_rq2():
     print("\nRQ2 Done! Plots saved to ./plots/")
 
 
+def run_cvxpy():
+    print("\n" + "#" * 60)
+    print("# CVXPY CONTROL EXPERIMENT")
+    print("#" * 60 + "\n")
+
+    from rq2_cvxpy_control import (
+        run_control_experiment,
+        print_control_table,
+        plot_control_scaling,
+        plot_control_duality_gap,
+    )
+
+    # Smaller datasets since CVXPY is much slower
+    n_samples_list = [50, 100, 200, 500]
+    n_features_list = [10, 50, 200, 500]
+    kernel_types = ["linear", "rbf", "poly"]
+    C = 1.0
+
+    results = run_control_experiment(
+        n_samples_list=n_samples_list,
+        n_features_list=n_features_list,
+        kernel_types=kernel_types,
+        C=C,
+        solver="SCS",
+        n_runs=3,
+    )
+
+    print_control_table(results)
+    plot_control_scaling(results)
+    plot_control_duality_gap(results)
+
+    print("\nCVXPY control experiment done! Plots saved to ./plots/")
+
+
+def run_rq2_with_control():
+    """Run both sklearn RQ2 and CVXPY control, then compare directions."""
+    run_rq2()
+
+    print("\n" + "#" * 60)
+    print("# CVXPY CONTROL + DIRECTION COMPARISON")
+    print("#" * 60 + "\n")
+
+    from rq2_cvxpy_control import (
+        run_control_experiment,
+        print_control_table,
+        print_direction_comparison,
+        plot_control_scaling,
+        plot_control_duality_gap,
+        plot_sklearn_vs_cvxpy_direction,
+    )
+    from rq2_solver_scaling import experiment_vary_n, experiment_vary_d
+
+    # Run CVXPY on a subset that overlaps with sklearn settings
+    n_samples_list = [50, 100, 200, 500]
+    n_features_list = [10, 50, 200, 500]
+    kernel_types = ["linear", "rbf", "poly"]
+    C = 1.0
+
+    cvxpy_results = run_control_experiment(
+        n_samples_list=n_samples_list,
+        n_features_list=n_features_list,
+        kernel_types=kernel_types,
+        C=C,
+        solver="SCS",
+        n_runs=3,
+    )
+
+    print_control_table(cvxpy_results)
+    plot_control_scaling(cvxpy_results)
+    plot_control_duality_gap(cvxpy_results)
+
+    # Run sklearn on the same settings for comparison
+    print("\n>>> Running sklearn on matching settings for comparison...")
+    sklearn_results = []
+    for n in n_samples_list:
+        for d in n_features_list:
+            results_nd = experiment_vary_n(
+                n_samples_list=[n],
+                fixed_d=d,
+                kernel_types=kernel_types,
+                C=C,
+                acc_tol=0.03,
+                n_timing_runs=3,
+            )
+            sklearn_results.extend(results_nd)
+
+    print_direction_comparison(cvxpy_results, sklearn_results)
+    plot_sklearn_vs_cvxpy_direction(cvxpy_results, sklearn_results)
+
+
 def run_viz():
     print("\n" + "#" * 60)
     print("# DECISION BOUNDARY VISUALIZATION")
@@ -177,14 +268,19 @@ if __name__ == "__main__":
             run_rq1()
         elif task == "rq2":
             run_rq2()
+        elif task == "cvxpy":
+            run_cvxpy()
+        elif task == "rq2full":
+            run_rq2_with_control()
         elif task == "viz":
             run_viz()
         else:
             print(f"Unknown task: {task}")
-            print("Usage: python run_all.py [rq1 | rq2 | viz]")
+            print("Usage: python run_all.py [rq1 | rq2 | cvxpy | rq2full | viz]")
     else:
         run_rq1()
         run_rq2()
+        run_cvxpy()
         run_viz()
 
     print("\n" + "=" * 60)
