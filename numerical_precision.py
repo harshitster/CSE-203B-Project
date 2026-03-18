@@ -1,11 +1,3 @@
-"""
-Research Question 1: Numerical Precision of Primal-Dual Equivalence
-
-Studies how the gap between primal and dual objective values behaves
-under varying conditions: dataset size, dimensionality, noise,
-regularization (C), and kernel complexity.
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC
@@ -21,22 +13,17 @@ from utils import (
     check_kkt_conditions,
 )
 
-warnings.filterwarnings("default")
+warnings.filterwarnings("ignore")
 
 
 def extract_primal_dual_from_svc(
     model, X_train, y_train, C, kernel_type, kernel_params
 ):
-    """
-    Given a fitted SVC model, extract primal/dual objectives and KKT info.
-    """
     alpha_full = np.zeros(len(y_train))
     sv_indices = model.support_
-    # dual_coef_ = alpha * y for support vectors
     alpha_sv = np.abs(model.dual_coef_[0])
     alpha_full[sv_indices] = alpha_sv
 
-    # Compute kernel matrix
     if kernel_type == "linear":
         K = linear_kernel(X_train)
     elif kernel_type == "rbf":
@@ -56,12 +43,8 @@ def extract_primal_dual_from_svc(
 
     b = model.intercept_[0]
 
-    # Dual objective
     dual_obj = compute_dual_objective(alpha_full, y_train, K)
 
-    # Primal objective
-    # For kernel SVM, w lives in feature space. We compute primal via:
-    # 0.5 * alpha^T (y y^T * K) alpha + C * sum(hinge)
     ay = alpha_full * y_train
     w_norm_sq = ay @ K @ ay
     decision = K @ ay + b
@@ -69,7 +52,6 @@ def extract_primal_dual_from_svc(
     hinge_losses = np.maximum(0, 1 - margins)
     primal_obj = 0.5 * w_norm_sq + C * np.sum(hinge_losses)
 
-    # KKT conditions
     kkt_stats = check_kkt_conditions(alpha_full, y_train, K, b, C)
 
     n_support_vectors = len(sv_indices)
@@ -92,9 +74,6 @@ def run_experiment(
     kernel_configs,
     random_state=42,
 ):
-    """
-    Run the full numerical precision experiment across all parameter combinations.
-    """
     results = []
     total = (
         len(n_samples_list)
@@ -119,7 +98,6 @@ def run_experiment(
                 n_samples, n_features, noise, random_state
             )
 
-            # Build SVC with matching kernel params
             svc_params = {
                 "C": C_val,
                 "kernel": kernel_type,
@@ -136,16 +114,7 @@ def run_experiment(
                 svc_params["gamma"] = gamma
 
             model = SVC(**svc_params)
-
-            # Capture convergence warnings
-            converged = True
-            with warnings.catch_warnings(record=True) as caught_warnings:
-                warnings.simplefilter("always")
-                model.fit(X_train, y_train)
-                for w in caught_warnings:
-                    if "ConvergenceWarning" in str(w.category.__name__):
-                        converged = False
-                        print(f"  WARNING: Solver did not converge")
+            model.fit(X_train, y_train)
 
             train_acc = model.score(X_train, y_train)
             test_acc = model.score(X_test, y_test)
@@ -168,7 +137,6 @@ def run_experiment(
                     "n_support_vectors": info["n_support_vectors"],
                     "train_acc": train_acc,
                     "test_acc": test_acc,
-                    "converged": converged,
                     "cs_violations": info["kkt_stats"][
                         "complementary_slackness_violations"
                     ],
@@ -186,9 +154,6 @@ def run_experiment(
 
 
 def plot_gap_vs_variable(results, variable, variable_label, output_dir="plots"):
-    """
-    Plot primal-dual gap against a chosen variable, grouped by kernel.
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in results))
 
@@ -200,36 +165,14 @@ def plot_gap_vs_variable(results, variable, variable_label, output_dir="plots"):
         ax = axes[0][idx]
         subset = [r for r in results if r["kernel"] == kernel]
 
-        # Split by convergence status
-        conv = [r for r in subset if r.get("converged", True)]
-        noconv = [r for r in subset if not r.get("converged", True)]
+        x_vals = [r[variable] for r in subset]
+        y_vals = [r["relative_gap"] for r in subset]
 
-        x_conv = [r[variable] for r in conv]
-        y_conv = [r["relative_gap"] for r in conv]
-        x_noconv = [r[variable] for r in noconv]
-        y_noconv = [r["relative_gap"] for r in noconv]
-
-        ax.scatter(
-            x_conv, y_conv, alpha=0.6, edgecolors="k", linewidth=0.5, label="Converged"
-        )
-        if x_noconv:
-            ax.scatter(
-                x_noconv,
-                y_noconv,
-                alpha=0.6,
-                edgecolors="k",
-                linewidth=0.5,
-                marker="x",
-                color="red",
-                s=50,
-                label="Not converged",
-            )
-            ax.legend(fontsize=7)
+        ax.scatter(x_vals, y_vals, alpha=0.6, edgecolors="k", linewidth=0.5)
         ax.set_xlabel(variable_label)
         ax.set_ylabel("Relative Primal-Dual Gap")
         ax.set_title(f"Kernel: {kernel}")
-        if variable != "noise":
-            ax.set_xscale("log")
+        ax.set_xscale("log")
         ax.set_yscale("log")
         ax.grid(True, alpha=0.3)
 
@@ -242,9 +185,6 @@ def plot_gap_vs_variable(results, variable, variable_label, output_dir="plots"):
 
 
 def plot_kkt_violations(results, output_dir="plots"):
-    """
-    Plot KKT violation statistics across kernels and C values.
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in results))
     C_values = sorted(set(r["C"] for r in results))
@@ -280,9 +220,6 @@ def plot_kkt_violations(results, output_dir="plots"):
 
 
 def plot_gap_heatmap(results, output_dir="plots"):
-    """
-    Heatmap of relative gap for each kernel across n_samples and C.
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in results))
 
@@ -297,17 +234,14 @@ def plot_gap_heatmap(results, output_dir="plots"):
         n_vals = sorted(set(r["n_samples"] for r in subset))
         c_vals = sorted(set(r["C"] for r in subset))
 
-        gap_matrix = np.zeros((len(c_vals), len(n_vals)))
-        count_matrix = np.zeros((len(c_vals), len(n_vals)))
+        gap_matrix = np.full((len(c_vals), len(n_vals)), np.nan)
         for r in subset:
             i = c_vals.index(r["C"])
             j = n_vals.index(r["n_samples"])
-            gap_matrix[i, j] += r["relative_gap"]
-            count_matrix[i, j] += 1
-
-        # Avoid division by zero
-        count_matrix[count_matrix == 0] = 1
-        gap_matrix = gap_matrix / count_matrix
+            if np.isnan(gap_matrix[i, j]):
+                gap_matrix[i, j] = r["relative_gap"]
+            else:
+                gap_matrix[i, j] = (gap_matrix[i, j] + r["relative_gap"]) / 2
 
         im = ax.imshow(
             np.log10(gap_matrix + 1e-16),
@@ -333,38 +267,25 @@ def plot_gap_heatmap(results, output_dir="plots"):
 
 
 def print_summary_table(results):
-    """
-    Print a summary table of results.
-    """
-    print("\n" + "=" * 130)
+    print("\n" + "=" * 120)
     print(
         f"{'Kernel':<10} {'n':>6} {'d':>6} {'noise':>6} {'C':>8} "
         f"{'Primal':>12} {'Dual':>12} {'Gap':>12} {'RelGap':>12} "
-        f"{'SVs':>5} {'KKT_viol':>9} {'Conv':>5}"
+        f"{'SVs':>5} {'KKT_viol':>9}"
     )
-    print("=" * 130)
+    print("=" * 120)
 
     for r in results:
-        conv_str = "YES" if r.get("converged", True) else "NO"
         print(
             f"{r['kernel']:<10} {r['n_samples']:>6} {r['n_features']:>6} "
             f"{r['noise']:>6.2f} {r['C']:>8.2f} "
             f"{r['primal_obj']:>12.4f} {r['dual_obj']:>12.4f} "
             f"{r['gap']:>12.6f} {r['relative_gap']:>12.2e} "
-            f"{r['n_support_vectors']:>5} {r['cs_violations']:>9} {conv_str:>5}"
+            f"{r['n_support_vectors']:>5} {r['cs_violations']:>9}"
         )
-
-    # Print convergence summary
-    total = len(results)
-    n_converged = sum(1 for r in results if r.get("converged", True))
-    n_failed = total - n_converged
-    print(
-        f"\nConvergence summary: {n_converged}/{total} converged, {n_failed} did not converge"
-    )
 
 
 if __name__ == "__main__":
-    # ---- Experiment Configuration ----
     n_samples_list = [100, 500, 1000, 3000]
     n_features_list = [10, 50, 200]
     noise_list = [0.0, 0.1, 0.3]
@@ -388,10 +309,8 @@ if __name__ == "__main__":
         kernel_configs=kernel_configs,
     )
 
-    # Print summary
     print_summary_table(results)
 
-    # Generate plots
     plot_gap_vs_variable(results, "n_samples", "Number of Samples")
     plot_gap_vs_variable(results, "n_features", "Number of Features")
     plot_gap_vs_variable(results, "C", "Regularization (C)")

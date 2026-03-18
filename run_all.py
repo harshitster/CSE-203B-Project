@@ -1,14 +1,3 @@
-"""
-Main Runner: Executes all experiments for the SVM Primal-Dual Study
-
-Usage:
-    python run_all.py           # Run everything
-    python run_all.py rq1       # Run only Research Question 1
-    python run_all.py rq2       # Run only Research Question 2
-    python run_all.py cvxpy     # Run only CVXPY control experiment
-    python run_all.py viz       # Run only decision boundary visualization
-"""
-
 import sys
 import os
 
@@ -18,7 +7,7 @@ def run_rq1():
     print("# RESEARCH QUESTION 1: NUMERICAL PRECISION")
     print("#" * 60 + "\n")
 
-    from rq1_numerical_precision import (
+    from numerical_precision import (
         run_experiment,
         print_summary_table,
         plot_gap_vs_variable,
@@ -62,7 +51,7 @@ def run_rq2():
     print("# RESEARCH QUESTION 2: SOLVER SCALING CROSSOVER")
     print("#" * 60 + "\n")
 
-    from rq2_solver_scaling import (
+    from solver_scaling import (
         experiment_vary_n,
         experiment_vary_d,
         print_scaling_table,
@@ -76,7 +65,6 @@ def run_rq2():
     kernel_types = ["linear", "rbf", "poly"]
     C = 1.0
 
-    # Experiment A: Fix d=100, vary n
     print(">>> Experiment A: Varying n with fixed d=100")
     fixed_d = 100
     n_samples_list = [50, 100, 200, 500, 1000, 2000, 5000, 10000]
@@ -91,7 +79,6 @@ def run_rq2():
     )
     print_scaling_table(results_vary_n, "Vary n (d=100)")
 
-    # Experiment B: Fix n=1000, vary d
     print("\n>>> Experiment B: Varying d with fixed n=1000")
     fixed_n = 1000
     n_features_list = [10, 25, 50, 100, 200, 500, 1000, 2000, 5000]
@@ -106,10 +93,8 @@ def run_rq2():
     )
     print_scaling_table(results_vary_d, "Vary d (n=1000)")
 
-    # Combined results
     all_results = results_vary_n + results_vary_d
 
-    # Plots
     plot_scaling_comparison(
         results_vary_n, "vary_n", "n_samples", "Number of Samples (n)"
     )
@@ -130,7 +115,6 @@ def run_rq2():
     )
     plot_crossover_summary(all_results)
 
-    # Report crossover points
     print("\n" + "=" * 80)
     print("ESTIMATED CROSSOVER POINTS")
     print("=" * 80)
@@ -162,14 +146,13 @@ def run_cvxpy():
     print("# CVXPY CONTROL EXPERIMENT")
     print("#" * 60 + "\n")
 
-    from rq2_cvxpy_control import (
+    from cvxpy_control import (
         run_control_experiment,
         print_control_table,
         plot_control_scaling,
         plot_control_duality_gap,
     )
 
-    # Smaller datasets since CVXPY is much slower
     n_samples_list = [50, 100, 200, 500]
     n_features_list = [10, 50, 200, 500]
     kernel_types = ["linear", "rbf", "poly"]
@@ -192,14 +175,13 @@ def run_cvxpy():
 
 
 def run_rq2_with_control():
-    """Run both sklearn RQ2 and CVXPY control, then compare directions."""
     run_rq2()
 
     print("\n" + "#" * 60)
     print("# CVXPY CONTROL + DIRECTION COMPARISON")
     print("#" * 60 + "\n")
 
-    from rq2_cvxpy_control import (
+    from cvxpy_control import (
         run_control_experiment,
         print_control_table,
         print_direction_comparison,
@@ -207,9 +189,8 @@ def run_rq2_with_control():
         plot_control_duality_gap,
         plot_sklearn_vs_cvxpy_direction,
     )
-    from rq2_solver_scaling import experiment_vary_n, experiment_vary_d
+    from solver_scaling import experiment_vary_n, experiment_vary_d
 
-    # Run CVXPY on a subset that overlaps with sklearn settings
     n_samples_list = [50, 100, 200, 500]
     n_features_list = [10, 50, 200, 500]
     kernel_types = ["linear", "rbf", "poly"]
@@ -228,7 +209,6 @@ def run_rq2_with_control():
     plot_control_scaling(cvxpy_results)
     plot_control_duality_gap(cvxpy_results)
 
-    # Run sklearn on the same settings for comparison
     print("\n>>> Running sklearn on matching settings for comparison...")
     sklearn_results = []
     for n in n_samples_list:

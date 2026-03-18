@@ -1,15 +1,3 @@
-"""
-Research Question 2: Solver Scaling Crossover
-
-Finds the empirical crossover point where primal solvers become faster
-than dual solvers (or vice versa) as the sample-to-feature ratio (n/d)
-varies, and examines how kernel choice shifts this crossover.
-
-For nonlinear kernels (RBF, poly), uses an adaptive approach to find
-the minimum n_components needed for the primal approximation to match
-dual accuracy within a tolerance, ensuring a fair timing comparison.
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC, LinearSVC
@@ -24,26 +12,7 @@ from utils import generate_synthetic_data, time_fit
 warnings.filterwarnings("ignore")
 
 
-# =========================================================
-# Solver wrappers
-# =========================================================
-
-
 def get_primal_solver(kernel_type, C, n_components=300, random_state=42, gamma=None):
-    """
-    Return a primal solver pipeline for the given kernel.
-
-    - Linear: LinearSVC(dual=False)
-    - RBF: Nystroem(kernel='rbf') -> LinearSVC(dual=False)
-    - Poly: Nystroem(kernel='poly') -> LinearSVC(dual=False)
-
-    For RBF/poly, gamma should be precomputed from the training data
-    to match SVC(gamma='scale'). Pass gamma explicitly.
-
-    Note: Both RBF and poly use Nystroem, which gives better kernel
-    approximation than RBFSampler (random Fourier features) but is
-    capped at n_train components.
-    """
     if kernel_type == "linear":
         return LinearSVC(
             C=C, dual=False, max_iter=50000, tol=1e-6, random_state=random_state
@@ -83,21 +52,10 @@ def get_primal_solver(kernel_type, C, n_components=300, random_state=42, gamma=N
 
 
 def compute_scale_gamma(X):
-    """
-    Compute gamma='scale' the same way sklearn does:
-    gamma = 1 / (n_features * X.var())
-    """
     return 1.0 / (X.shape[1] * X.var())
 
 
 def get_dual_solver(kernel_type, C, random_state=42):
-    """
-    Return a dual solver for the given kernel.
-
-    - Linear: LinearSVC(dual=True) or SVC(kernel='linear')
-    - RBF: SVC(kernel='rbf')
-    - Poly: SVC(kernel='poly')
-    """
     if kernel_type == "linear":
         return LinearSVC(
             C=C, dual=True, max_iter=50000, tol=1e-6, random_state=random_state
@@ -118,11 +76,6 @@ def get_dual_solver(kernel_type, C, random_state=42):
         raise ValueError(f"Unknown kernel: {kernel_type}")
 
 
-# =========================================================
-# Adaptive n_components finder
-# =========================================================
-
-
 def find_matched_n_components(
     kernel_type,
     C,
@@ -135,26 +88,11 @@ def find_matched_n_components(
     candidates=None,
     random_state=42,
 ):
-    """
-    For nonlinear kernels, find the smallest n_components such that
-    the primal approximation achieves accuracy within acc_tol of
-    the dual's accuracy.
-
-    Both RBF and poly use Nystroem, which is capped at n_train components.
-    We always include n_train as a final candidate to use the maximum
-    available approximation quality.
-
-    Returns:
-        (best_n_components, primal_acc_at_best)
-    """
     if candidates is None:
         candidates = [100, 200, 500, 1000, 2000, 3000, 5000]
 
-    # Nystroem (used for both rbf and poly) can't have more components
-    # than training samples.
     n_train = X_train.shape[0]
 
-    # Filter to feasible sizes and add n_train as the last resort
     candidates = [c for c in candidates if c <= n_train]
     if not candidates or candidates[-1] < n_train:
         candidates.append(n_train)
@@ -169,13 +107,7 @@ def find_matched_n_components(
         if abs(p_acc - dual_acc) <= acc_tol:
             return nc, p_acc
 
-    # If none matched, return the largest we tried
     return candidates[-1], p_acc
-
-
-# =========================================================
-# Core experiment runner (shared by vary_n and vary_d)
-# =========================================================
 
 
 def _run_single_setting(
@@ -193,24 +125,13 @@ def _run_single_setting(
     n_timing_runs=5,
     random_state=42,
 ):
-    """
-    Run primal vs dual comparison for a single (kernel, dataset) setting.
-    For nonlinear kernels, adaptively finds n_components first.
-
-    The accuracy tolerance is adjusted for small test sets: with n_test=10,
-    a single prediction changes accuracy by 0.1, so requiring 0.03 tolerance
-    is impossible. We use max(acc_tol, 2/n_test) to account for this.
-    """
-    # Step 1: Fit dual and get reference accuracy
     dual_model = get_dual_solver(kernel_type, C, random_state)
     dual_model.fit(X_train, y_train)
     dual_acc = accuracy_score(y_test, dual_model.predict(X_test))
 
-    # Adjust tolerance for small test sets
     n_test = len(y_test)
     effective_tol = max(acc_tol, 2.0 / n_test)
 
-    # Step 2: Find appropriate n_components for primal (if nonlinear)
     n_comp_used = None
     if kernel_type == "linear":
         primal_model = get_primal_solver(kernel_type, C, random_state=random_state)
@@ -231,7 +152,6 @@ def _run_single_setting(
         )
         acc_matched = abs(primal_acc - dual_acc) <= effective_tol
 
-    # Step 3: Time both solvers (using the matched n_components)
     gamma = compute_scale_gamma(X_train)
     if kernel_type == "linear":
         primal_for_timing = get_primal_solver(kernel_type, C, random_state=random_state)
@@ -243,11 +163,9 @@ def _run_single_setting(
     primal_time = time_fit(primal_for_timing, X_train, y_train, n_runs=n_timing_runs)
     dual_time = time_fit(dual_model, X_train, y_train, n_runs=n_timing_runs)
 
-    # Re-check accuracy after timing (since time_fit refits)
     primal_acc = accuracy_score(y_test, primal_for_timing.predict(X_test))
     dual_acc = accuracy_score(y_test, dual_model.predict(X_test))
 
-    # Print progress
     comp_str = f", ncomp={n_comp_used}" if n_comp_used else ""
     tol_str = f", tol={effective_tol:.2f}" if effective_tol > acc_tol else ""
     match_str = "OK" if acc_matched else "UNMATCHED"
@@ -273,11 +191,6 @@ def _run_single_setting(
     }
 
 
-# =========================================================
-# Experiment 1: Vary n with fixed d
-# =========================================================
-
-
 def experiment_vary_n(
     n_samples_list,
     fixed_d,
@@ -286,12 +199,8 @@ def experiment_vary_n(
     acc_tol=0.03,
     n_timing_runs=5,
     random_state=42,
-    **kwargs,  # Accept and ignore legacy n_components param
+    **kwargs,
 ):
-    """
-    Fix d, vary n. Measure primal vs dual training time.
-    Uses adaptive n_components for nonlinear kernels.
-    """
     results = []
 
     for kernel_type in kernel_types:
@@ -324,11 +233,6 @@ def experiment_vary_n(
     return results
 
 
-# =========================================================
-# Experiment 2: Vary d with fixed n
-# =========================================================
-
-
 def experiment_vary_d(
     fixed_n,
     n_features_list,
@@ -337,12 +241,8 @@ def experiment_vary_d(
     acc_tol=0.03,
     n_timing_runs=5,
     random_state=42,
-    **kwargs,  # Accept and ignore legacy n_components param
+    **kwargs,
 ):
-    """
-    Fix n, vary d. Measure primal vs dual training time.
-    Uses adaptive n_components for nonlinear kernels.
-    """
     results = []
 
     for kernel_type in kernel_types:
@@ -375,26 +275,7 @@ def experiment_vary_d(
     return results
 
 
-# =========================================================
-# Crossover estimation
-# =========================================================
-
-
 def estimate_crossover(results, kernel_type, experiment_type):
-    """
-    Estimate the n/d crossover point where primal becomes faster than dual
-    using linear interpolation. Only uses accuracy-matched results for a
-    fair comparison.
-
-    Returns:
-        dict with keys:
-            crossovers: list of crossover n/d ratios
-            confidence: 'high', 'moderate', 'low', or 'infeasible'
-            n_matched: number of matched data points used
-            n_total: total data points for this kernel/experiment
-            n_unmatched: number of unmatched points excluded
-            note: human-readable explanation
-    """
     subset = [
         r
         for r in results
@@ -407,7 +288,6 @@ def estimate_crossover(results, kernel_type, experiment_type):
     n_matched = len(matched)
     n_unmatched = n_total - n_matched
 
-    # If most points are unmatched, crossover estimation is unreliable
     if n_matched < 3:
         return {
             "crossovers": [],
@@ -418,22 +298,19 @@ def estimate_crossover(results, kernel_type, experiment_type):
             "note": "Too few accuracy-matched points for reliable estimation",
         }
 
-    # Look for sign changes in (dual_time - primal_time) using matched results only
     diffs = [(r["nd_ratio"], r["dual_time"] - r["primal_time"]) for r in matched]
 
     crossovers = []
     for i in range(len(diffs) - 1):
         ratio1, diff1 = diffs[i]
         ratio2, diff2 = diffs[i + 1]
-        if diff1 * diff2 < 0:  # sign change
+        if diff1 * diff2 < 0:
             crossover = ratio1 + (ratio2 - ratio1) * abs(diff1) / (
                 abs(diff1) + abs(diff2)
             )
             crossovers.append(crossover)
 
-    # Assess confidence
     if not crossovers:
-        # No crossover found — one solver dominates throughout matched range
         if matched:
             faster = (
                 "Primal"
@@ -455,7 +332,6 @@ def estimate_crossover(results, kernel_type, experiment_type):
             confidence = "low"
             note = f"Crossover at n/d ~ {crossovers[0]:.1f} but {n_unmatched} points couldn't be matched"
     else:
-        # Multiple crossovers = noisy, likely unreliable
         confidence = "low"
         note = (
             f"Multiple crossovers detected ({len(crossovers)}), "
@@ -472,18 +348,9 @@ def estimate_crossover(results, kernel_type, experiment_type):
     }
 
 
-# =========================================================
-# Plotting
-# =========================================================
-
-
 def plot_scaling_comparison(
     results, experiment_label, x_var, x_label, output_dir="plots"
 ):
-    """
-    Plot primal vs dual training time for each kernel.
-    Shades regions where accuracy matching failed (unfair comparison).
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in results))
 
@@ -502,7 +369,6 @@ def plot_scaling_comparison(
         dual_times = [r["dual_time"] for r in subset]
         matched_flags = [r.get("acc_matched", True) for r in subset]
 
-        # Plot all points but style matched vs unmatched differently
         matched_x = [x for x, m in zip(x_vals, matched_flags) if m]
         matched_pt = [t for t, m in zip(primal_times, matched_flags) if m]
         matched_dt = [t for t, m in zip(dual_times, matched_flags) if m]
@@ -510,11 +376,9 @@ def plot_scaling_comparison(
         unmatched_pt = [t for t, m in zip(primal_times, matched_flags) if not m]
         unmatched_dt = [t for t, m in zip(dual_times, matched_flags) if not m]
 
-        # Matched points: solid lines
         ax.plot(matched_x, matched_pt, "b-o", label="Primal", markersize=5)
         ax.plot(matched_x, matched_dt, "r-s", label="Dual", markersize=5)
 
-        # Unmatched points: faded with X markers
         if unmatched_x:
             ax.plot(
                 unmatched_x,
@@ -533,7 +397,6 @@ def plot_scaling_comparison(
                 markeredgewidth=2,
             )
 
-            # Shade the unmatched region
             um_min = min(unmatched_x)
             um_max = max(unmatched_x)
             ax.axvspan(
@@ -544,7 +407,6 @@ def plot_scaling_comparison(
                 label="Unmatched (unfair)",
             )
 
-        # Mark crossover regions (only from matched data)
         info = estimate_crossover(results, kernel, experiment_label)
         for c in info["crossovers"]:
             ax.axvline(
@@ -555,7 +417,6 @@ def plot_scaling_comparison(
                 label=f"Crossover ~ {c:.1f}",
             )
 
-        # Add confidence annotation
         conf = info["confidence"]
         conf_color = {
             "high": "green",
@@ -593,9 +454,6 @@ def plot_scaling_comparison(
 def plot_accuracy_comparison(
     results, experiment_label, x_var, x_label, output_dir="plots"
 ):
-    """
-    Plot primal vs dual test accuracy to verify solution quality is comparable.
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in results))
 
@@ -633,10 +491,6 @@ def plot_accuracy_comparison(
 
 
 def plot_crossover_summary(all_results, output_dir="plots"):
-    """
-    Summary plot showing estimated crossover points for each kernel,
-    with confidence indicated by bar color.
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in all_results))
     experiments = sorted(set(r["experiment"] for r in all_results))
@@ -658,7 +512,6 @@ def plot_crossover_summary(all_results, output_dir="plots"):
         for kernel in kernels:
             info = estimate_crossover(all_results, kernel, exp)
             if info["crossovers"] and info["confidence"] != "infeasible":
-                # Use first crossover if multiple (most reliable)
                 crossover_vals.append(info["crossovers"][0])
             else:
                 crossover_vals.append(0)
@@ -716,10 +569,6 @@ def plot_crossover_summary(all_results, output_dir="plots"):
 def plot_ncomponents_used(
     results, experiment_label, x_var, x_label, output_dir="plots"
 ):
-    """
-    Plot the n_components required for accuracy matching at each setting.
-    Only shows nonlinear kernels (linear doesn't use feature maps).
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = [k for k in sorted(set(r["kernel"] for r in results)) if k != "linear"]
 
@@ -744,7 +593,6 @@ def plot_ncomponents_used(
         nc_vals = [r["n_components"] for r in subset]
         matched = [r.get("acc_matched", True) for r in subset]
 
-        # Color points by match status
         colors = ["green" if m else "red" for m in matched]
         ax.scatter(x_vals, nc_vals, c=colors, edgecolors="k", s=60, zorder=3)
         ax.plot(x_vals, nc_vals, "k--", alpha=0.3, zorder=1)
@@ -754,7 +602,6 @@ def plot_ncomponents_used(
         ax.set_title(f"Kernel: {kernel}")
         ax.set_xscale("log")
 
-        # Legend for match status
         from matplotlib.lines import Line2D
 
         legend_elements = [
@@ -793,7 +640,6 @@ def plot_ncomponents_used(
 
 
 def print_scaling_table(results, label):
-    """Print a timing summary table."""
     print(f"\n{'=' * 120}")
     print(f"SCALING RESULTS: {label}")
     print(f"{'=' * 120}")
@@ -823,7 +669,6 @@ if __name__ == "__main__":
     print("RESEARCH QUESTION 2: SOLVER SCALING CROSSOVER")
     print("=" * 60)
 
-    # ---- Experiment A: Fix d=100, vary n ----
     print("\n>>> Experiment A: Varying n with fixed d=100")
     fixed_d = 100
     n_samples_list = [50, 100, 200, 500, 1000, 2000, 5000, 10000]
@@ -839,7 +684,6 @@ if __name__ == "__main__":
 
     print_scaling_table(results_vary_n, "Vary n (d=100)")
 
-    # ---- Experiment B: Fix n=1000, vary d ----
     print("\n>>> Experiment B: Varying d with fixed n=1000")
     fixed_n = 1000
     n_features_list = [10, 25, 50, 100, 200, 500, 1000, 2000, 5000]
@@ -855,10 +699,8 @@ if __name__ == "__main__":
 
     print_scaling_table(results_vary_d, "Vary d (n=1000)")
 
-    # ---- Combined results ----
     all_results = results_vary_n + results_vary_d
 
-    # ---- Plots ----
     plot_scaling_comparison(
         results_vary_n, "vary_n", "n_samples", "Number of Samples (n)"
     )
@@ -873,7 +715,6 @@ if __name__ == "__main__":
     )
     plot_crossover_summary(all_results)
 
-    # ---- Report crossover points ----
     print("\n" + "=" * 60)
     print("ESTIMATED CROSSOVER POINTS")
     print("=" * 60)

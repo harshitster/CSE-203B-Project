@@ -1,10 +1,3 @@
-"""
-Decision Boundary Visualization
-
-Visualizes SVM decision boundaries on 2D datasets to qualitatively
-confirm that primal and dual formulations produce equivalent boundaries.
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from sklearn.svm import SVC, LinearSVC
@@ -16,9 +9,6 @@ import os
 
 
 def plot_decision_boundary(ax, model, X, y, title=""):
-    """
-    Plot the decision boundary and margins for a fitted model.
-    """
     h = 0.02
     x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
     y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
@@ -30,7 +20,6 @@ def plot_decision_boundary(ax, model, X, y, title=""):
     ax.contourf(xx, yy, Z, alpha=0.3, cmap=plt.cm.RdBu)
     ax.contour(xx, yy, Z, colors="k", linewidths=0.5)
 
-    # Try to plot decision function contours (margins)
     try:
         Z_dec = model.decision_function(np.c_[xx.ravel(), yy.ravel()])
         Z_dec = Z_dec.reshape(xx.shape)
@@ -53,7 +42,6 @@ def plot_decision_boundary(ax, model, X, y, title=""):
         X[y == 1, 0], X[y == 1, 1], c="red", edgecolors="k", s=30, label="Class +1"
     )
 
-    # Mark support vectors if available
     if hasattr(model, "support_"):
         ax.scatter(
             X[model.support_, 0],
@@ -71,12 +59,8 @@ def plot_decision_boundary(ax, model, X, y, title=""):
 
 
 def generate_2d_datasets():
-    """
-    Generate several 2D datasets for visualization.
-    """
     datasets = {}
 
-    # Linearly separable
     X, y = make_classification(
         n_samples=200,
         n_features=2,
@@ -90,13 +74,11 @@ def generate_2d_datasets():
     scaler = StandardScaler()
     datasets["Linear"] = (scaler.fit_transform(X), y)
 
-    # Moons
     X, y = make_moons(n_samples=200, noise=0.2, random_state=42)
     y = 2 * y - 1
     scaler = StandardScaler()
     datasets["Moons"] = (scaler.fit_transform(X), y)
 
-    # Circles
     X, y = make_circles(n_samples=200, noise=0.1, factor=0.5, random_state=42)
     y = 2 * y - 1
     scaler = StandardScaler()
@@ -106,9 +88,6 @@ def generate_2d_datasets():
 
 
 def visualize_all(C=1.0, output_dir="plots"):
-    """
-    For each 2D dataset and kernel, show primal vs dual decision boundaries side by side.
-    """
     os.makedirs(output_dir, exist_ok=True)
     datasets = generate_2d_datasets()
 
@@ -124,7 +103,6 @@ def visualize_all(C=1.0, output_dir="plots"):
         )
 
         for k_idx, (kernel_type, kernel_params) in enumerate(kernel_configs):
-            # --- Dual solver ---
             svc_params = {"C": C, "kernel": kernel_type, "tol": 1e-6}
             if kernel_type == "rbf":
                 svc_params["gamma"] = kernel_params.get("gamma", "scale")
@@ -139,7 +117,6 @@ def visualize_all(C=1.0, output_dir="plots"):
                 axes[k_idx, 0], dual_model, X, y, title=f"Dual — {kernel_type} kernel"
             )
 
-            # --- Primal solver ---
             n_components = min(500, X.shape[0])
             gamma_val = 1.0 / (X.shape[1] * X.var())
             if kernel_type == "linear":
@@ -176,7 +153,6 @@ def visualize_all(C=1.0, output_dir="plots"):
                 title=f"Primal — {kernel_type} kernel",
             )
 
-        # Add column headers
         axes[0, 0].set_ylabel("linear", fontsize=12, fontweight="bold")
         axes[1, 0].set_ylabel("rbf", fontsize=12, fontweight="bold")
         axes[2, 0].set_ylabel("poly", fontsize=12, fontweight="bold")

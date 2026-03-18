@@ -1,28 +1,3 @@
-"""
-CVXPY Control Experiment: Solver-Neutral Primal vs Dual Comparison
-
-Addresses the TA's concern about implementation differences:
-the sklearn experiments compare liblinear (primal) vs libsvm (dual),
-which are different codebases. This experiment uses CVXPY to solve
-BOTH formulations with the same generic QP solver (SCS or ECOS),
-so the timing difference reflects only formulation complexity.
-
-We run on smaller datasets (CVXPY is much slower than specialized solvers)
-and check whether the crossover direction matches the sklearn results.
-
-Formulations used:
-  Primal (kernelized via representer theorem):
-    minimize    0.5 * beta^T K beta + C * sum(xi)
-    subject to  y_i * ((K beta)_i + b) >= 1 - xi_i,  xi >= 0
-
-  Dual:
-    maximize    sum(alpha) - 0.5 * (alpha * y)^T K (alpha * y)
-    subject to  0 <= alpha_i <= C,  sum(alpha_i * y_i) = 0
-
-Both formulations use the same precomputed kernel matrix K,
-so the only difference is the optimization problem structure.
-"""
-
 import numpy as np
 import cvxpy as cp
 import time
@@ -33,27 +8,7 @@ import os
 from utils import generate_synthetic_data
 
 
-# =========================================================
-# CVXPY SVM solvers
-# =========================================================
-
-
 def solve_primal_cvxpy(K, y, C, solver="SCS", verbose=False):
-    """
-    Solve the kernelized primal SVM using CVXPY.
-
-    Primal (via representer theorem):
-        minimize    0.5 * beta^T K beta + C * sum(xi)
-        subject to  y_i * ((K beta)_i + b) >= 1 - xi,  xi >= 0
-
-    Parameters:
-        K: (n, n) kernel matrix
-        y: (n,) labels in {-1, +1}
-        C: regularization parameter
-        solver: CVXPY solver name
-    Returns:
-        dict with solve_time, objective, beta, b, xi, status
-    """
     n = K.shape[0]
     beta = cp.Variable(n)
     b = cp.Variable()
@@ -61,7 +16,6 @@ def solve_primal_cvxpy(K, y, C, solver="SCS", verbose=False):
 
     objective = cp.Minimize(0.5 * cp.quad_form(beta, cp.psd_wrap(K)) + C * cp.sum(xi))
 
-    # y_i * ((K @ beta)_i + b) >= 1 - xi_i
     constraints = [cp.multiply(y, K @ beta + b) >= 1 - xi]
 
     prob = cp.Problem(objective, constraints)
@@ -81,25 +35,9 @@ def solve_primal_cvxpy(K, y, C, solver="SCS", verbose=False):
 
 
 def solve_dual_cvxpy(K, y, C, solver="SCS", verbose=False):
-    """
-    Solve the dual SVM using CVXPY.
-
-    Dual:
-        maximize    sum(alpha) - 0.5 * (alpha * y)^T K (alpha * y)
-        subject to  0 <= alpha_i <= C,  sum(alpha_i * y_i) = 0
-
-    Parameters:
-        K: (n, n) kernel matrix
-        y: (n,) labels in {-1, +1}
-        C: regularization parameter
-        solver: CVXPY solver name
-    Returns:
-        dict with solve_time, objective, alpha, status
-    """
     n = K.shape[0]
     alpha = cp.Variable(n)
 
-    # Q_ij = y_i * y_j * K_ij
     Q = np.outer(y, y) * K
 
     objective = cp.Maximize(cp.sum(alpha) - 0.5 * cp.quad_form(alpha, cp.psd_wrap(Q)))
@@ -124,13 +62,7 @@ def solve_dual_cvxpy(K, y, C, solver="SCS", verbose=False):
     }
 
 
-# =========================================================
-# Kernel computation
-# =========================================================
-
-
 def compute_kernel(X, kernel_type):
-    """Compute the kernel matrix."""
     if kernel_type == "linear":
         return linear_kernel(X)
     elif kernel_type == "rbf":
@@ -143,11 +75,6 @@ def compute_kernel(X, kernel_type):
         raise ValueError(f"Unknown kernel: {kernel_type}")
 
 
-# =========================================================
-# Main experiment
-# =========================================================
-
-
 def run_control_experiment(
     n_samples_list,
     n_features_list,
@@ -157,12 +84,6 @@ def run_control_experiment(
     n_runs=3,
     random_state=42,
 ):
-    """
-    Run the CVXPY control experiment.
-
-    For each (n, d, kernel) setting, solve both primal and dual with
-    the same CVXPY solver and record timing.
-    """
     results = []
 
     total = len(n_samples_list) * len(n_features_list) * len(kernel_types)
@@ -184,14 +105,11 @@ def run_control_experiment(
                     n, d, noise=0.05, random_state=random_state
                 )
 
-                # Precompute kernel matrix (shared by both formulations)
                 K = compute_kernel(X_train, kernel_type)
 
-                # Ensure K is positive semidefinite (add small ridge)
                 K = K + 1e-6 * np.eye(K.shape[0])
 
                 try:
-                    # Solve primal multiple times
                     primal_times = []
                     primal_obj = None
                     primal_status = None
@@ -203,7 +121,6 @@ def run_control_experiment(
                         primal_obj = res["objective"]
                         primal_status = res["status"]
 
-                    # Solve dual multiple times
                     dual_times = []
                     dual_obj = None
                     dual_status = None
@@ -219,9 +136,6 @@ def run_control_experiment(
                     dual_time = np.median(dual_times)
                     faster = "Primal" if primal_time < dual_time else "Dual"
 
-                    # Duality gap: at optimum, primal_obj = dual_obj
-                    # (primal is a minimization, dual is a maximization,
-                    # and CVXPY returns the optimal value of each)
                     gap = (
                         abs(primal_obj - dual_obj) if primal_obj and dual_obj else None
                     )
@@ -256,16 +170,7 @@ def run_control_experiment(
     return results
 
 
-# =========================================================
-# Plotting
-# =========================================================
-
-
 def plot_control_scaling(results, output_dir="plots"):
-    """
-    Plot CVXPY primal vs dual timing, comparable to the sklearn plots.
-    One subplot per kernel, x-axis = n/d ratio.
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in results))
 
@@ -303,9 +208,6 @@ def plot_control_scaling(results, output_dir="plots"):
 
 
 def plot_control_duality_gap(results, output_dir="plots"):
-    """
-    Plot the duality gap from CVXPY solutions (also feeds into RQ1).
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in results))
 
@@ -341,10 +243,6 @@ def plot_control_duality_gap(results, output_dir="plots"):
 
 
 def plot_sklearn_vs_cvxpy_direction(cvxpy_results, sklearn_results, output_dir="plots"):
-    """
-    Compare the 'which is faster' direction between sklearn and CVXPY.
-    Plots a grid showing agreement/disagreement.
-    """
     os.makedirs(output_dir, exist_ok=True)
     kernels = sorted(set(r["kernel"] for r in cvxpy_results))
 
@@ -365,7 +263,6 @@ def plot_sklearn_vs_cvxpy_direction(cvxpy_results, sklearn_results, output_dir="
         sklearn_ratios_list = []
 
         for cr in cvxpy_sub:
-            # Find matching sklearn result
             sk_match = [
                 r
                 for r in sklearn_results
@@ -376,7 +273,6 @@ def plot_sklearn_vs_cvxpy_direction(cvxpy_results, sklearn_results, output_dir="
             if sk_match:
                 sr = sk_match[0]
                 ratios.append(cr["nd_ratio"])
-                # Ratio > 1 means dual is slower (primal wins)
                 cvxpy_ratios_list.append(
                     cr["dual_time"] / max(cr["primal_time"], 1e-10)
                 )
@@ -400,7 +296,6 @@ def plot_sklearn_vs_cvxpy_direction(cvxpy_results, sklearn_results, output_dir="
         ax.legend(fontsize=8)
         ax.grid(True, alpha=0.3)
 
-        # Annotate: above line = primal faster, below = dual faster
         ax.text(
             0.02,
             0.98,
@@ -434,7 +329,6 @@ def plot_sklearn_vs_cvxpy_direction(cvxpy_results, sklearn_results, output_dir="
 
 
 def print_control_table(results):
-    """Print a summary table."""
     print(f"\n{'=' * 110}")
     print(
         f"{'Kernel':<10} {'n':>6} {'d':>6} {'n/d':>8} "
@@ -453,10 +347,6 @@ def print_control_table(results):
 
 
 def print_direction_comparison(cvxpy_results, sklearn_results):
-    """
-    Print a side-by-side comparison of which solver is faster
-    in CVXPY vs sklearn for matching settings.
-    """
     print(f"\n{'=' * 90}")
     print("DIRECTION COMPARISON: sklearn vs CVXPY")
     print(f"{'=' * 90}")
@@ -506,7 +396,6 @@ if __name__ == "__main__":
     print("CVXPY CONTROL EXPERIMENT")
     print("=" * 60)
 
-    # Smaller datasets since CVXPY is much slower than sklearn
     n_samples_list = [50, 100, 200, 500]
     n_features_list = [10, 50, 200, 500]
     kernel_types = ["linear", "rbf", "poly"]
@@ -523,7 +412,6 @@ if __name__ == "__main__":
 
     print_control_table(results)
 
-    # Generate plots
     plot_control_scaling(results)
     plot_control_duality_gap(results)
 
