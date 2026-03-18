@@ -1,7 +1,7 @@
-# An Empirical Study of SVMs: Numerical Precision of Primal-Dual Equivalence and Solver Scaling Across Kernels
+# An Empirical Study of SVMs: Solver Scaling Across Kernels and Numerical Precision of Primal-Dual Equivalence
 
-**Course:** CSE-203B Convex Optimization
-**Team:** Charvi Bannur, Harshit Timmanagoudar, Saniya Patil, Rohan Thorat
+**Course:** CSE-203B Machine Learning  
+**Authors:** Charvi Bannur, Harshit Timmanagoudar, Saniya Patil, Rohan Thorat
 
 ## Overview
 
@@ -58,10 +58,10 @@ python run_all.py
 ### Run individual experiments
 
 ```bash
-python run_all.py rq1       # Numerical precision (RQ2 in paper)
-python run_all.py rq2       # Solver scaling crossover (RQ1 in paper)
+python run_all.py rq1       # Solver scaling crossover (RQ1 in paper)
+python run_all.py rq2       # Numerical precision (RQ2 in paper)
 python run_all.py cvxpy     # CVXPY control experiment
-python run_all.py rq2full   # Solver scaling + CVXPY with direction comparison
+python run_all.py rq1full   # Solver scaling + CVXPY with direction comparison
 python run_all.py viz       # Decision boundary visualization
 ```
 

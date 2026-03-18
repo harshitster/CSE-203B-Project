@@ -2,53 +2,9 @@ import sys
 import os
 
 
-def run_rq1():
+def run_solver_scaling():
     print("\n" + "#" * 60)
-    print("# RESEARCH QUESTION 1: NUMERICAL PRECISION")
-    print("#" * 60 + "\n")
-
-    from numerical_precision import (
-        run_experiment,
-        print_summary_table,
-        plot_gap_vs_variable,
-        plot_kkt_violations,
-        plot_gap_heatmap,
-    )
-
-    n_samples_list = [100, 500, 1000, 3000]
-    n_features_list = [10, 50, 200]
-    noise_list = [0.0, 0.1, 0.3]
-    C_list = [0.01, 1.0, 100.0, 10000.0]
-
-    kernel_configs = [
-        ("linear", {}),
-        ("rbf", {"gamma": "scale"}),
-        ("poly", {"degree": 3, "coef0": 1, "gamma": "scale"}),
-    ]
-
-    results = run_experiment(
-        n_samples_list=n_samples_list,
-        n_features_list=n_features_list,
-        noise_list=noise_list,
-        C_list=C_list,
-        kernel_configs=kernel_configs,
-    )
-
-    print_summary_table(results)
-
-    plot_gap_vs_variable(results, "n_samples", "Number of Samples")
-    plot_gap_vs_variable(results, "n_features", "Number of Features")
-    plot_gap_vs_variable(results, "C", "Regularization (C)")
-    plot_gap_vs_variable(results, "noise", "Label Noise")
-    plot_kkt_violations(results)
-    plot_gap_heatmap(results)
-
-    print("\nRQ1 Done! Plots saved to ./plots/")
-
-
-def run_rq2():
-    print("\n" + "#" * 60)
-    print("# RESEARCH QUESTION 2: SOLVER SCALING CROSSOVER")
+    print("# RESEARCH QUESTION 1: SOLVER SCALING CROSSOVER")
     print("#" * 60 + "\n")
 
     from solver_scaling import (
@@ -138,6 +94,50 @@ def run_rq2():
     print("  INFEASIBLE = primal approximation could not match dual accuracy")
     print("-" * 80)
 
+    print("\nRQ1 Done! Plots saved to ./plots/")
+
+
+def run_numerical_precision():
+    print("\n" + "#" * 60)
+    print("# RESEARCH QUESTION 2: NUMERICAL PRECISION")
+    print("#" * 60 + "\n")
+
+    from numerical_precision import (
+        run_experiment,
+        print_summary_table,
+        plot_gap_vs_variable,
+        plot_kkt_violations,
+        plot_gap_heatmap,
+    )
+
+    n_samples_list = [100, 500, 1000, 3000]
+    n_features_list = [10, 50, 200]
+    noise_list = [0.0, 0.1, 0.3]
+    C_list = [0.01, 1.0, 100.0, 10000.0]
+
+    kernel_configs = [
+        ("linear", {}),
+        ("rbf", {"gamma": "scale"}),
+        ("poly", {"degree": 3, "coef0": 1, "gamma": "scale"}),
+    ]
+
+    results = run_experiment(
+        n_samples_list=n_samples_list,
+        n_features_list=n_features_list,
+        noise_list=noise_list,
+        C_list=C_list,
+        kernel_configs=kernel_configs,
+    )
+
+    print_summary_table(results)
+
+    plot_gap_vs_variable(results, "n_samples", "Number of Samples")
+    plot_gap_vs_variable(results, "n_features", "Number of Features")
+    plot_gap_vs_variable(results, "C", "Regularization (C)")
+    plot_gap_vs_variable(results, "noise", "Label Noise")
+    plot_kkt_violations(results)
+    plot_gap_heatmap(results)
+
     print("\nRQ2 Done! Plots saved to ./plots/")
 
 
@@ -174,8 +174,8 @@ def run_cvxpy():
     print("\nCVXPY control experiment done! Plots saved to ./plots/")
 
 
-def run_rq2_with_control():
-    run_rq2()
+def run_rq1_with_control():
+    run_solver_scaling()
 
     print("\n" + "#" * 60)
     print("# CVXPY CONTROL + DIRECTION COMPARISON")
@@ -245,21 +245,21 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         task = sys.argv[1].lower()
         if task == "rq1":
-            run_rq1()
+            run_solver_scaling()
         elif task == "rq2":
-            run_rq2()
+            run_numerical_precision()
         elif task == "cvxpy":
             run_cvxpy()
-        elif task == "rq2full":
-            run_rq2_with_control()
+        elif task == "rq1full":
+            run_rq1_with_control()
         elif task == "viz":
             run_viz()
         else:
             print(f"Unknown task: {task}")
-            print("Usage: python run_all.py [rq1 | rq2 | cvxpy | rq2full | viz]")
+            print("Usage: python run_all.py [rq1 | rq2 | cvxpy | rq1full | viz]")
     else:
-        run_rq1()
-        run_rq2()
+        run_solver_scaling()
+        run_numerical_precision()
         run_cvxpy()
         run_viz()
 
