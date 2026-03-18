@@ -1,7 +1,7 @@
 # An Empirical Study of SVMs: Numerical Precision of Primal-Dual Equivalence and Solver Scaling Across Kernels
 
-**Course:** CSE-203B Machine Learning  
-**Authors:** Charvi Bannur, Harshit Timmanagoudar, Saniya Patil, Rohan Thorat
+**Course:** CSE-203B Convex Optimization
+**Team:** Charvi Bannur, Harshit Timmanagoudar, Saniya Patil, Rohan Thorat
 
 ## Overview
 
